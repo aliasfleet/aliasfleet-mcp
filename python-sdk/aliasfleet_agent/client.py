@@ -51,10 +51,50 @@ class AliasFleetAgentClient:
             err_body = err.read().decode("utf-8")
             try:
                 parsed = json.loads(err_body)
-                msg = parsed.get("error") or parsed.get("detail") or err_body
+                err_data = parsed.get("error")
+                if isinstance(err_data, dict) and "issues" in err_data:
+                    issues = [f"{'.'.join(str(p) for p in i.get('path', [])) or 'body'}: {i.get('message')}" for i in err_data.get("issues", [])]
+                    msg = "API validation error: " + ", ".join(issues)
+                elif isinstance(err_data, (dict, list)):
+                    msg = json.dumps(err_data)
+                else:
+                    msg = err_data or parsed.get("detail") or parsed.get("message") or err_body
             except Exception:
                 msg = err_body
             raise RuntimeError(f"AliasFleet API error ({err.code}): {msg}")
+
+    def _resolve_domain_id(self) -> Optional[str]:
+        try:
+            res = self._request("/v1/user/default-domain", method="GET")
+            d_id = (res.get("default_domain") or {}).get("id") or res.get("id") or res.get("domain_id")
+            if d_id:
+                return d_id
+        except Exception:
+            pass
+
+        try:
+            res = self._request("/v1/aliases?limit=5", method="GET")
+            aliases = res.get("aliases") or res.get("data") or []
+            for item in aliases:
+                d_id = item.get("domain_id") or (item.get("domain") or {}).get("id")
+                if d_id:
+                    return d_id
+        except Exception:
+            pass
+
+        try:
+            res = self._request("/v1/domains", method="GET")
+            domains = res.get("domains") or res.get("data") or []
+            if domains:
+                for d in domains:
+                    if d.get("is_default") or d.get("is_primary"):
+                        return d.get("id")
+                if domains[0].get("id"):
+                    return domains[0].get("id")
+        except Exception:
+            pass
+
+        return None
 
     def _mock_request(self, endpoint: str, method: str, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if endpoint == "/v1/me":
@@ -94,17 +134,21 @@ class AliasFleetAgentClient:
         """
         Provision a dedicated forwarding address and programmable inbox for an agent.
         """
+        resolved_domain_id = domain_id
+        if not resolved_domain_id and not self.simulation:
+            resolved_domain_id = self._resolve_domain_id()
+
         payload = {
             "description": label,
             "local_part": local_part,
-            "domain_id": domain_id,
+            "domain_id": resolved_domain_id,
             "forward_to_email": forward_to_email
         }
         res = self._request("/v1/aliases", method="POST", payload=payload)
         alias = res.get("alias", res)
         return {
             "id": alias.get("id"),
-            "email": alias.get("full_address"),
+            "email": alias.get("full_address") or alias.get("full_alias") or f"{alias.get('local_part')}@{alias.get('domain', 'aliasfleet.com')}",
             "local_part": alias.get("local_part"),
             "domain": alias.get("domain"),
             "active": alias.get("active", True),

@@ -44,7 +44,7 @@ export const TOOLS = [
         },
         domain_id: {
           type: "string",
-          description: "Optional custom domain UUID. If omitted, uses default platform domain."
+          description: "Optional custom domain UUID. If omitted, the server automatically resolves and uses your account's default or active domain."
         },
         forward_to_email: {
           type: "string",
@@ -134,10 +134,32 @@ async function callAliasFleetApi(endpoint, options = {}, requestApiKey = API_KEY
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || data.detail || `HTTP ${response.status} ${response.statusText}`);
+    throw new Error(formatApiError(data, response));
   }
 
   return data;
+}
+
+function formatApiError(data, response) {
+  if (data?.error) {
+    if (typeof data.error === 'object') {
+      if (Array.isArray(data.error.issues) && data.error.issues.length > 0) {
+        const issuesText = data.error.issues
+          .map(i => `${i.path?.join('.') || 'param'}: ${i.message}`)
+          .join(', ');
+        return `API validation error: ${issuesText}`;
+      }
+      return JSON.stringify(data.error);
+    }
+    return String(data.error);
+  }
+  if (data?.message) {
+    return typeof data.message === 'object' ? JSON.stringify(data.message) : String(data.message);
+  }
+  if (data?.detail) {
+    return typeof data.detail === 'object' ? JSON.stringify(data.detail) : String(data.detail);
+  }
+  return `HTTP ${response.status} ${response.statusText}`;
 }
 
 function handleMockRequest(endpoint, options = {}) {
@@ -185,12 +207,14 @@ function handleMockRequest(endpoint, options = {}) {
 
   if (endpoint === '/v1/webhooks/endpoints' && method === 'POST') {
     const body = options.body || {};
+    const mockSecret = `af_whsec_mock_${Math.random().toString(36).substring(2, 15)}`;
     const newWebhook = {
       id: `wh-${Date.now()}`,
       name: body.name || "Agent Webhook",
       url: body.url,
       format: body.format || "parsed_json",
-      secret: `af_whsec_mock_${Math.random().toString(36).substring(2, 15)}`,
+      secret: mockSecret,
+      secret_key: mockSecret,
       active: true,
       created_at: new Date().toISOString()
     };
@@ -205,13 +229,68 @@ function handleMockRequest(endpoint, options = {}) {
   return { success: true, message: "Mock endpoint executed", endpoint, simulation: true };
 }
 
+let cachedDefaultDomainId = null;
+
+async function resolveDefaultDomainId(apiKey) {
+  if (cachedDefaultDomainId) return cachedDefaultDomainId;
+
+  // 1. Try querying /v1/user/default-domain
+  try {
+    const res = await callAliasFleetApi('/v1/user/default-domain', {}, apiKey);
+    const id = res?.default_domain?.id || res?.id || res?.domain_id;
+    if (id) {
+      cachedDefaultDomainId = id;
+      return id;
+    }
+  } catch {
+    // Fallback to active aliases inspection
+  }
+
+  // 2. Try borrowing domain_id from active aliases (/v1/aliases?limit=5)
+  try {
+    const res = await callAliasFleetApi('/v1/aliases?limit=5', {}, apiKey);
+    const aliases = res?.aliases || res?.data || [];
+    if (Array.isArray(aliases)) {
+      const found = aliases.find(a => a.domain_id || a.domain?.id);
+      const id = found?.domain_id || found?.domain?.id;
+      if (id) {
+        cachedDefaultDomainId = id;
+        return id;
+      }
+    }
+  } catch {
+    // Fallback to domains list
+  }
+
+  // 3. Try querying /v1/domains if developer key has domains scope
+  try {
+    const res = await callAliasFleetApi('/v1/domains', {}, apiKey);
+    const domains = res?.domains || res?.data || [];
+    if (Array.isArray(domains) && domains.length > 0) {
+      const defaultDomain = domains.find(d => d.is_default || d.is_primary) || domains[0];
+      if (defaultDomain?.id) {
+        cachedDefaultDomainId = defaultDomain.id;
+        return defaultDomain.id;
+      }
+    }
+  } catch {
+    // Handled
+  }
+
+  return undefined;
+}
+
 export async function handleToolCall(name, args, apiKey = API_KEY) {
   switch (name) {
     case "aliasfleet_create_inbox": {
+      let domainId = args.domain_id;
+      if (!domainId && process.env.ALIASFLEET_MOCK !== "true") {
+        domainId = await resolveDefaultDomainId(apiKey);
+      }
       const payload = {
         description: args.label || "AI Agent Programmable Inbox",
         local_part: args.local_part || undefined,
-        domain_id: args.domain_id || undefined,
+        domain_id: domainId || undefined,
         forward_to_email: args.forward_to_email || undefined
       };
       const result = await callAliasFleetApi('/v1/aliases', {
@@ -225,10 +304,10 @@ export async function handleToolCall(name, args, apiKey = API_KEY) {
             type: "text",
             text: JSON.stringify({
               status: "success",
-              email_address: alias.full_address,
+              email_address: alias.full_address || alias.full_alias || `${alias.local_part}@${alias.domain || 'aliasfleet.com'}`,
               alias_id: alias.id,
               description: alias.description,
-              active: alias.active,
+              active: alias.active ?? alias.is_active ?? true,
               simulation: result.simulation || false,
               instructions: "Use this email_address for web signups, OTP verifications, or incoming agent routing. Inbound messages will forward to your destination or webhook."
             }, null, 2)
@@ -267,16 +346,18 @@ export async function handleToolCall(name, args, apiKey = API_KEY) {
           format: args.format || "parsed_json"
         }
       }, apiKey);
+      const endpoint = result.endpoint || result;
+      const signingSecret = endpoint?.secret_key || endpoint?.secret || result?.secret_key || result?.secret || "Configure in AliasFleet dashboard";
       return {
         content: [
           {
             type: "text",
             text: JSON.stringify({
               status: "success",
-              endpoint_id: result.endpoint?.id || result.id,
+              endpoint_id: endpoint?.id,
               url: args.url,
               format: args.format || "parsed_json",
-              signing_secret: result.endpoint?.secret || "Configure in AliasFleet dashboard",
+              signing_secret: signingSecret,
               note: "Inbound emails will now fire HMAC-signed JSON events directly to this URL."
             }, null, 2)
           }
@@ -338,7 +419,7 @@ export function startMcpServer() {
           },
           serverInfo: {
             name: "aliasfleet-mcp",
-            version: "1.0.0"
+            version: "1.0.1"
           }
         }
       };

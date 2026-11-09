@@ -83,8 +83,45 @@ function handleServerResponse(res) {
     console.log('[PASS] tools/call (aliasfleet_list_inboxes) output:');
     const content = res.result?.content?.[0]?.text;
     console.log(content);
+    // Call aliasfleet_setup_webhook
+    sendJsonRpc({
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: {
+        name: 'aliasfleet_setup_webhook',
+        arguments: {
+          url: 'https://example.com/webhook',
+          name: 'CI Webhook Listener'
+        }
+      }
+    });
+  } else if (res.id === 5) {
+    console.log('[PASS] tools/call (aliasfleet_setup_webhook) output:');
+    const content = res.result?.content?.[0]?.text;
+    console.log(content);
+    const parsed = JSON.parse(content);
+    if (!parsed.signing_secret || parsed.signing_secret === "Configure in AliasFleet dashboard") {
+      console.error('[FAIL] Webhook signing_secret not properly resolved:', parsed.signing_secret);
+      process.exit(1);
+    }
+    console.log('[PASS] Webhook signing_secret verified:', parsed.signing_secret);
+    // Call aliasfleet_get_account_info
+    sendJsonRpc({
+      jsonrpc: '2.0',
+      id: 6,
+      method: 'tools/call',
+      params: {
+        name: 'aliasfleet_get_account_info',
+        arguments: {}
+      }
+    });
+  } else if (res.id === 6) {
+    console.log('[PASS] tools/call (aliasfleet_get_account_info) output:');
+    const content = res.result?.content?.[0]?.text;
+    console.log(content);
 
-    console.log('--- ALL MCP SERVER TESTS PASSED ---');
+    console.log('--- ALL 4 MCP TOOLS VERIFIED AND PASSED ---');
     proc.kill();
     process.exit(0);
   }
