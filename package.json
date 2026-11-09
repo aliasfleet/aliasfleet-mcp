@@ -4,7 +4,7 @@
   "description": "Official Model Context Protocol (MCP) server & Agent Toolkit for AliasFleet programmable inboxes and privacy aliases",
   "type": "module",
   "bin": {
-    "aliasfleet-mcp": "./mcp-server/bin/cli.js"
+    "aliasfleet-mcp": "mcp-server/bin/cli.js"
   },
   "main": "./mcp-server/src/index.js",
   "scripts": {
