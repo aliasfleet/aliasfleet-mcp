@@ -1,0 +1,18 @@
+{
+  "$schema": "https://glama.ai/mcp/schema.json",
+  "name": "AliasFleet",
+  "description": "Programmable email infrastructure, dedicated forwarding aliases, and webhook listeners for AI agents and developer automation.",
+  "category": "email",
+  "homepage": "https://aliasfleet.com",
+  "repository": "https://github.com/aliasfleet/aliasfleet-mcp",
+  "transport": {
+    "type": "streamable-http",
+    "url": "https://mcp.aliasfleet.com/mcp"
+  },
+  "tools": [
+    "aliasfleet_create_inbox",
+    "aliasfleet_list_inboxes",
+    "aliasfleet_setup_webhook",
+    "aliasfleet_get_account_info"
+  ]
+}

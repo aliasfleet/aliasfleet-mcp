@@ -1,0 +1,220 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AliasFleet Developer API for ChatGPT",
+    "description": "Programmable email infrastructure and privacy aliases for AI agents and ChatGPT users. Provision dedicated forwarding addresses, list active inboxes, and configure webhook delivery.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.aliasfleet.com",
+      "description": "AliasFleet Production API"
+    }
+  ],
+  "paths": {
+    "/v1/me": {
+      "get": {
+        "operationId": "getAccountInfo",
+        "summary": "Get account identity, active subscription tier, and available quotas",
+        "responses": {
+          "200": {
+            "description": "Account details and quota limits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/aliases": {
+      "get": {
+        "operationId": "listAliases",
+        "summary": "List active email aliases and forwarding destinations",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "Maximum number of aliases to retrieve"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of active aliases",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "aliases": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/AliasItem" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAlias",
+        "summary": "Create a new dedicated forwarding address or privacy alias",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAliasRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Alias created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "alias": { "$ref": "#/components/schemas/AliasItem" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/webhooks/endpoints": {
+      "post": {
+        "operationId": "setupWebhook",
+        "summary": "Configure a webhook endpoint for real-time incoming email notifications",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupWebhookRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook endpoint registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "endpoint": { "$ref": "#/components/schemas/WebhookEndpointItem" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Enter your AliasFleet Developer API key (afp_...)"
+      }
+    },
+    "schemas": {
+      "AccountInfo": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string" },
+          "tier": { "type": "string" },
+          "scopes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "CreateAliasRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Label or context for the alias (e.g. 'Newsletter signup', 'ChatGPT Task')"
+          },
+          "local_part": {
+            "type": "string",
+            "description": "Optional prefix for the email. Random alphanumeric string generated if omitted."
+          },
+          "forward_to_email": {
+            "type": "string",
+            "description": "Optional verified forwarding destination inbox"
+          }
+        }
+      },
+      "AliasItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "local_part": { "type": "string" },
+          "domain": { "type": "string" },
+          "full_address": { "type": "string" },
+          "description": { "type": "string" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "SetupWebhookRequest": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "HTTPS webhook URL to receive notifications when emails arrive"
+          },
+          "name": {
+            "type": "string",
+            "description": "Friendly label for the webhook endpoint"
+          },
+          "format": {
+            "type": "string",
+            "enum": ["parsed_json", "raw_mime"],
+            "default": "parsed_json",
+            "description": "Notification format payload"
+          }
+        }
+      },
+      "WebhookEndpointItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "url": { "type": "string" },
+          "format": { "type": "string" },
+          "secret": { "type": "string" },
+          "active": { "type": "boolean" },
+          "created_at": { "type": "string" }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ]
+}

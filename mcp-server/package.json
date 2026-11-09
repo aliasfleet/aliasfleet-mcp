@@ -1,0 +1,33 @@
+{
+  "name": "@aliasfleet/mcp-server",
+  "version": "1.0.0",
+  "description": "Official Model Context Protocol (MCP) server for AliasFleet programmable email infrastructure and privacy aliases",
+  "type": "module",
+  "bin": {
+    "aliasfleet-mcp": "./bin/cli.js",
+    "mcp-server": "./bin/cli.js"
+  },
+  "main": "./src/index.js",
+  "scripts": {
+    "start": "node ./bin/cli.js",
+    "test": "node ../test-agent-suite.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aliasfleet/aliasfleet-mcp.git"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "cursor",
+    "windsurf",
+    "ai-agent",
+    "aliasfleet",
+    "email",
+    "privacy-alias",
+    "webhooks"
+  ],
+  "author": "AliasFleet Team",
+  "license": "MIT"
+}

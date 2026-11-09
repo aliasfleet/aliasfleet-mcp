@@ -1,0 +1,20 @@
+# Smithery configuration for AliasFleet MCP Server
+# https://smithery.ai
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        description: "Your AliasFleet Developer API key (afp_...)"
+    required: []
+  commandFunction:
+    package: aliasfleet-mcp
+    command: npx
+    args:
+      - "-y"
+      - "aliasfleet-mcp"
+    env:
+      ALIASFLEET_API_KEY: "{{apiKey}}"

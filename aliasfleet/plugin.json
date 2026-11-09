@@ -1,0 +1,28 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "aliasfleet",
+  "version": "1.0.0",
+  "description": "Programmable email aliases and dedicated inbox infrastructure for AI agents.",
+  "author": {
+    "name": "AliasFleet Team"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "AliasFleet",
+        "shortDescription": "Email aliases for AI agents",
+        "longDescription": "Connect your AliasFleet account to ChatGPT using your own Developer API key. Create dedicated email aliases, list your inboxes, configure HMAC-signed email webhooks, and inspect your account subscription and quotas. Every user authenticates with their own AliasFleet credentials.",
+        "developerName": "AliasFleet",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Interactive"
+        ],
+        "defaultPrompt": [
+          "Create a dedicated email alias for my next signup.",
+          "Show my active AliasFleet inboxes.",
+          "Check my AliasFleet account and quotas."
+        ]
+      }
+    }
+  }
+}

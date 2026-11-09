@@ -1,0 +1,69 @@
+# AliasFleet Agent Email Protocol (llms.txt)
+
+> Programmable email infrastructure and isolated privacy aliases for AI agents, Browser-Use, Playwright, and Claude MCP.
+
+## Overview
+AliasFleet enables AI agents to provision dedicated forwarding addresses, receive inbound emails via instant HMAC-signed JSON webhooks, and process OTP verification codes without exposing real personal or corporate credentials.
+
+- Base API: `https://api.aliasfleet.com`
+- Authentication: `Authorization: Bearer <afp_api_key>`
+- Key Prefix: `afp_` (52 hex characters)
+- Webhook Secret: `af_whsec_` (73 characters)
+
+## Core Tools for AI Agents
+
+### 1. Provision Agent Inbox
+- Method: `POST /v1/aliases`
+- Payload:
+```json
+{
+  "description": "Agent Task or Name",
+  "local_part": "agent-qa-42",
+  "domain_id": "optional-custom-domain-uuid"
+}
+```
+- Response (`201 Created`):
+```json
+{
+  "success": true,
+  "alias": {
+    "id": "9f83a21b-4c7d-4e9a-8b7c-6d5e4f3a2b1c",
+    "full_address": "agent-qa-42@aliasfleet.com",
+    "active": true
+  }
+}
+```
+
+### 2. Stream Inbound Emails via Webhook
+- Method: `POST /v1/webhooks/endpoints`
+- Payload:
+```json
+{
+  "url": "https://your-agent-server.com/webhooks/email",
+  "format": "parsed_json"
+}
+```
+- Webhook Headers sent on arrival:
+  - `X-AliasFleet-Signature`: `t=timestamp,v1=hmac_sha256_hash`
+  - `X-AliasFleet-Event`: `email.received`
+
+### 3. Model Context Protocol (MCP) Setup
+Add to `claude_desktop_config.json` or Cursor MCP settings:
+```json
+{
+  "mcpServers": {
+    "aliasfleet": {
+      "command": "node",
+      "args": ["/path/to/@aliasfleet/mcp-server/bin/cli.js"],
+      "env": {
+        "ALIASFLEET_API_KEY": "afp_your_key_here"
+      }
+    }
+  }
+}
+```
+Exposes tools:
+- `aliasfleet_create_inbox`
+- `aliasfleet_list_inboxes`
+- `aliasfleet_setup_webhook`
+- `aliasfleet_get_account_info`
